@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+   <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Planejamento de Viagem - Firebase</title>
+
+      <!-- Firebase SDK -->
+      <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+      <!-- SheetJS para exportação Excel -->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+      <style>
+         :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            --transition: all 0.3s ease;
+         }
+
+         * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+         }
+
+         body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(
+               135deg,
+               var(--primary-color) 0%,
+               var(--secondary-color) 100%
+            );
+            min-height: 100vh;
+            padding: 10px;
+         }
+
+         .container {
+            max-width: 1200px;
+            margin: 0 auto;
+         }
+
+         h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 2em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            padding: 10px;
+         }
+
+         /* STATUS DO FIREBASE */
+         .firebase-status {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+         }
+
+         .status-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+         }
+
+         .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            animation: pulse 2s infinite;
+         }
+
+         .status-indicator.connected {
+            background: var(--success-color);
+         }
+
+         .status-indicator.syncing {
+            background: var(--warning-color);
+         }
+
+         .status-indicator.error {
+            background: var(--danger-color);
+         }
+
+         @keyframes pulse {
+            0%,
+            100% {
+               opacity: 1;
+            }
+            50% {
+               opacity: 0.5;
+            }
+         }
+
+         .status-text {
+            font-size: 0.9em;
+            color: #333;
+            font-weight: 600;
+         }
+
+         .sync-info {
+            font-size: 0.85em;
+            color: #666;
+         }
+
+         /* TABS */
+         .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+         }
+
+         .tab-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+            white-space: nowrap;
+         }
+
+         .tab-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+         }
+
+         .tab-button.active {
+            background: white;
+            color: var(--primary-color);
+            box-shadow: var(--shadow);
+         }
+
+         .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+         }
+
+         .tab-content.active {
+            display: block;
+         }
+
+         @keyframes fadeIn {
+            from {
+               opacity: 0;
+               transform: translateY(10px);
+            }
+            to {
+               opacity: 1;
+               transform: translateY(0);
+            }
+         }
+
+         /* CARDS - ROTAS */
+         .day-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+         }
+
+         .day-header {
+            background: linear-gradient(
+               135deg,
+               var(--primary-color) 0%,
+               var(--secondary-color) 100%
+            );
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+         }
+
+         .day-header h2 {
+            font-size: 1.5em;
+            margin-bottom: 8px;
+         }
+
+         .route-info {
+            opacity: 0.9;
+         }
+
+         /* SUMMARY */
+         .summary {
+            background: var(--light-bg);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary-color);
+         }
+
+         .summary h3 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #333;
+         }
+
+         .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+         }
+
+         .summary-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: var(--transition);
+         }
+
+         .summary-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+         }
+
+         .summary-item strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+         }
+
+         .summary-item span {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #333;
+         }
+
+         /* TABLES */
+         .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+            border-radius: 10px;
+         }
+
+         table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 500px;
+         }
+
+         thead {
+            background: linear-gradient(
+               135deg,
+               var(--primary-color) 0%,
+               var(--secondary-color) 100%
+            );
+            color: white;
+         }
+
+         th {
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 600;
+         }
+
+         tbody tr {
+            transition: var(--transition);
+         }
+
+         tbody tr:nth-child(even) {
+            background: var(--light-bg);
+         }
+
+         tbody tr:hover {
+            background: #e3e6ff;
+         }
+
+         td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #dee2e6;
+         }
+
+         .city-name {
+            font-weight: 600;
+            color: #333;
+         }
+
+         .state {
+            color: #666;
+            font-size: 0.85em;
+         }
+
+         .distance {
+            color: var(--primary-color);
+            font-weight: 600;
+         }
+
+         .time {
+            color: var(--secondary-color);
+            font-weight: 600;
+         }
+
+         .start-point {
+            background: #d4edda !important;
+            font-weight: bold;
+         }
+
+         .end-point {
+            background: #d1ecf1 !important;
+            font-weight: bold;
+         }
+
+         /* NOTES */
+         .notes {
+            background: #fff3cd;
+            border-left: 5px solid var(--warning-color);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+         }
+
+         .notes h3 {
+            color: #856404;
+            margin-bottom: 10px;
+         }
+
+         .notes p {
+            color: #856404;
+            line-height: 1.6;
+         }
+
+         /* CARDS - GASTOS */
+         .main-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+         }
+
+         .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--light-bg);
+            padding-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+         }
+
+         .card-title {
+            color: var(--primary-color);
+            font-size: 1.5em;
+            font-weight: 700;
+         }
+
+         /* SUB-TABS NA ABA GASTOS */
+         .sub-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: var(--light-bg);
+            padding: 10px;
+            border-radius: 10px;
+         }
+
+         .sub-tab-button {
+            background: white;
+            border: 2px solid transparent;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            color: #333;
+         }
+
+         .sub-tab-button:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+         }
+
+         .sub-tab-button.active {
+            background: linear-gradient(
+               135deg,
+               var(--primary-color),
+               var(--secondary-color)
+            );
+            color: white;
+            border-color: var(--primary-color);
+         }
+
+         .sub-tab-content {
+            display: none;
+         }
+
+         .sub-tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+         }
+
+         /* FORMULÁRIO */
+         .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+         }
+
+         .form-group {
+            margin-bottom: 20px;
+         }
+
+         .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+         }
+
+         .form-group input,
+         .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: var(--transition);
+         }
+
+         .form-group input:focus,
+         .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+         }
+
+         /* BOTÕES */
+         .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+         }
+
+         .btn-primary {
+            background: var(--primary-color);
+            color: white;
+         }
+
+         .btn-primary:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+         }
+
+         .btn-success {
+            background: var(--success-color);
+            color: white;
+         }
+
+         .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+         }
+
+         .btn-danger {
+            background: var(--danger-color);
+            color: white;
+         }
+
+         .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+         }
+
+         .btn-warning {
+            background: var(--warning-color);
+            color: #333;
+         }
+
+         .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+         }
+
+         /* LISTA DE GASTOS */
+         .expense-list {
+            margin-top: 20px;
+         }
+
+         .expense-item {
+            background: var(--light-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+         }
+
+         .expense-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+         }
+
+         .expense-info {
+            flex: 1;
+         }
+
+         .expense-date {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+         }
+
+         .expense-type {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+         }
+
+         .expense-description {
+            color: #666;
+            font-size: 0.9em;
+         }
+
+         .expense-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: var(--success-color);
+         }
+
+         .btn-delete {
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: var(--transition);
+         }
+
+         .btn-delete:hover {
+            background: #c82333;
+            transform: scale(1.1);
+         }
+
+         /* CARD DE TOTAL */
+         .total-card {
+            background: linear-gradient(
+               135deg,
+               var(--primary-color),
+               var(--secondary-color)
+            );
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+         }
+
+         .total-label {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+         }
+
+         .total-value {
+            font-size: 2.5em;
+            font-weight: 700;
+         }
+
+         /* ESTATÍSTICAS */
+         .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+         }
+
+         .stat-card {
+            background: var(--light-bg);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: var(--transition);
+         }
+
+         .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+         }
+
+         .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+         }
+
+         .stat-value {
+            color: var(--primary-color);
+            font-size: 1.8em;
+            font-weight: 700;
+         }
+
+         /* CATEGORIAS */
+         .category-list {
+            margin-top: 20px;
+         }
+
+         .category-item {
+            background: var(--light-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+         }
+
+         .category-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+         }
+
+         .category-info {
+            flex: 1;
+         }
+
+         .category-name {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+            font-size: 1.1em;
+         }
+
+         .category-count {
+            color: #666;
+            font-size: 0.9em;
+         }
+
+         .category-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--success-color);
+         }
+
+         /* PROGRESS BAR */
+         .progress-bar-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 8px;
+            margin-top: 8px;
+            overflow: hidden;
+         }
+
+         .progress-bar {
+            background: linear-gradient(
+               135deg,
+               var(--primary-color),
+               var(--secondary-color)
+            );
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+         }
+
+         /* ALERTAS */
+         .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+         }
+
+         .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+         }
+
+         .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+         }
+
+         .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid var(--info-color);
+         }
+
+         .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
+         }
+
+         /* BOTÕES DE AÇÃO */
+         .action-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+         }
+
+         /* RESPONSIVIDADE */
+         @media (max-width: 768px) {
+            h1 {
+               font-size: 1.5em;
+            }
+
+            .tabs {
+               gap: 8px;
+            }
+
+            .tab-button {
+               padding: 10px 16px;
+               font-size: 0.9em;
+            }
+
+            .sub-tabs {
+               justify-content: center;
+            }
+
+            .sub-tab-button {
+               flex: 1;
+               min-width: 100px;
+               text-align: center;
+            }
+
+            .form-row {
+               grid-template-columns: 1fr;
+            }
+
+            .btn {
+               width: 100%;
+               justify-content: center;
+            }
+
+            .expense-item,
+            .category-item {
+               flex-direction: column;
+               align-items: flex-start;
+               gap: 10px;
+            }
+
+            .expense-value,
+            .category-value {
+               font-size: 1.5em;
+            }
+
+            .firebase-status {
+               flex-direction: column;
+               text-align: center;
+            }
+
+            .summary-grid {
+               grid-template-columns: repeat(2, 1fr);
+            }
+         }
+      </style>
+   </head>
+   <body>
+      <div class="container">
+         <h1>🚗 Planejamento de Viagem - Firebase</h1>
+
+         <!-- Status do Firebase -->
+         <div class="firebase-status">
+            <div class="status-info">
+               <div class="status-indicator" id="firebaseIndicator"></div>
+               <div>
+                  <span class="status-text" id="firebaseStatus"
+                     >Conectando ao Firebase...</span
+                  >
+                  <div class="sync-info" id="syncInfo"></div>
+               </div>
+            </div>
+         </div>
+
+         <div id="alertContainer"></div>
+
+         <!-- TABS PRINCIPAIS -->
+         <div class="tabs">
+            <button
+               class="tab-button active"
+               onclick="switchMainTab('ida', this)"
+            >
+               ✈️ Ida
+            </button>
+            <button class="tab-button" onclick="switchMainTab('retorno', this)">
+               🏠 Retorno
+            </button>
+            <button class="tab-button" onclick="switchMainTab('gastos', this)">
+               💰 Gastos
+            </button>
+         </div>
+
+         <!-- ========================================
+             ABA IDA
+        ======================================== -->
+         <div id="ida" class="tab-content active">
+            <div class="day-section">
+               <div class="day-header">
+                  <h2>Dia 1 - Segunda-feira, 30/12/24</h2>
+                  <p class="route-info">📍 Campo Grande → Montese (Itaporã)</p>
+               </div>
+
+               <div class="summary">
+                  <h3>📊 Resumo da Viagem</h3>
+                  <div class="summary-grid">
+                     <div class="summary-item">
+                        <strong>🛣️ Distância Total</strong>
+                        <span>~311 km</span>
+                     </div>
+                     <div class="summary-item">
+                        <strong>⏱️ Tempo Estimado</strong>
+                        <span>~4h30</span>
+                     </div>
+                     <div class="summary-item">
+                        <strong>📍 Paradas</strong>
+                        <span>5 cidades</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div class="table-wrapper">
+                  <table>
+                     <thead>
+                        <tr>
+                           <th>#</th>
+                           <th>Cidade</th>
+                           <th>Distância</th>
+                           <th>Tempo</th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        <tr class="start-point">
+                           <td>1</td>
+                           <td>
+                              <span class="city-name">Campo Grande</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">Início</td>
+                           <td class="time">-</td>
+                        </tr>
+                        <tr>
+                           <td>2</td>
+                           <td>
+                              <span class="city-name">Sidrolândia</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~72 km</td>
+                           <td class="time">~1h05</td>
+                        </tr>
+                        <tr>
+                           <td>3</td>
+                           <td>
+                              <span class="city-name">Maracaju</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~88 km</td>
+                           <td class="time">~1h22</td>
+                        </tr>
+                        <tr>
+                           <td>4</td>
+                           <td>
+                              <span class="city-name">Itaporã</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~77 km</td>
+                           <td class="time">~1h09</td>
+                        </tr>
+                        <tr class="end-point">
+                           <td>5</td>
+                           <td>
+                              <span class="city-name">Montese</span>
+                              <span class="state">(Itaporã)</span>
+                           </td>
+                           <td class="distance">~9 km</td>
+                           <td class="time">~11 min</td>
+                        </tr>
+                     </tbody>
+                  </table>
+               </div>
+
+               <div class="notes">
+                  <h3>💡 Sugestões Importantes</h3>
+                  <p>
+                     <strong>Itaporã</strong> e <strong>Maracaju</strong> têm
+                     boa infraestrutura para alimentação e abastecimento.
+                  </p>
+               </div>
+            </div>
+         </div>
+
+         <!-- ========================================
+             ABA RETORNO
+        ======================================== -->
+         <div id="retorno" class="tab-content">
+            <div class="day-section">
+               <div class="day-header">
+                  <h2>Dia 5 - Sexta-feira, 03/01/25</h2>
+                  <p class="route-info">📍 Montese (Itaporã) → Campo Grande</p>
+               </div>
+
+               <div class="summary">
+                  <h3>📊 Resumo da Viagem</h3>
+                  <div class="summary-grid">
+                     <div class="summary-item">
+                        <strong>🛣️ Distância Total</strong>
+                        <span>~246 km</span>
+                     </div>
+                     <div class="summary-item">
+                        <strong>⏱️ Tempo Estimado</strong>
+                        <span>~3h35</span>
+                     </div>
+                     <div class="summary-item">
+                        <strong>📍 Paradas</strong>
+                        <span>4 cidades</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div class="table-wrapper">
+                  <table>
+                     <thead>
+                        <tr>
+                           <th>#</th>
+                           <th>Cidade</th>
+                           <th>Distância</th>
+                           <th>Tempo</th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        <tr class="start-point">
+                           <td>1</td>
+                           <td>
+                              <span class="city-name">Montese</span>
+                              <span class="state">(Itaporã)</span>
+                           </td>
+                           <td class="distance">Início</td>
+                           <td class="time">-</td>
+                        </tr>
+                        <tr>
+                           <td>2</td>
+                           <td>
+                              <span class="city-name">Itaporã</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~9 km</td>
+                           <td class="time">~11 min</td>
+                        </tr>
+                        <tr>
+                           <td>3</td>
+                           <td>
+                              <span class="city-name">Maracaju</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~77 km</td>
+                           <td class="time">~1h09</td>
+                        </tr>
+                        <tr>
+                           <td>4</td>
+                           <td>
+                              <span class="city-name">Sidrolândia</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~88 km</td>
+                           <td class="time">~1h22</td>
+                        </tr>
+                        <tr class="end-point">
+                           <td>5</td>
+                           <td>
+                              <span class="city-name">Campo Grande</span>
+                              <span class="state">(MS)</span>
+                           </td>
+                           <td class="distance">~72 km</td>
+                           <td class="time">~53 min</td>
+                        </tr>
+                     </tbody>
+                  </table>
+               </div>
+
+               <div class="notes">
+                  <h3>💡 Dicas para o Retorno</h3>
+                  <p>
+                     Mesma rota da ida, porém no sentido inverso. Considere uma
+                     parada em <strong>Maracaju</strong>.
+                  </p>
+               </div>
+            </div>
+         </div>
+
+         <!-- ========================================
+             ABA GASTOS
+        ======================================== -->
+         <div id="gastos" class="tab-content">
+            <!-- Sub-tabs dentro de Gastos -->
+            <div class="sub-tabs">
+               <button
+                  class="sub-tab-button active"
+                  onclick="switchSubTab('addExpense', this)"
+               >
+                  ➕ Adicionar
+               </button>
+               <button
+                  class="sub-tab-button"
+                  onclick="switchSubTab('detailsExpense', this)"
+               >
+                  📊 Detalhes
+               </button>
+               <button
+                  class="sub-tab-button"
+                  onclick="switchSubTab('exportExpense', this)"
+               >
+                  💾 Exportar
+               </button>
+            </div>
+
+            <!-- SUB-TAB: ADICIONAR -->
+            <div id="addExpense" class="sub-tab-content active">
+               <div class="main-card">
+                  <div class="card-header">
+                     <h2 class="card-title">💰 Adicionar Gasto</h2>
+                  </div>
+
+                  <form id="expenseForm" onsubmit="TravelApp.addExpense(event)">
+                     <div class="form-row">
+                        <div class="form-group">
+                           <label>📅 Data</label>
+                           <input type="date" id="expenseDate" required />
+                        </div>
+
+                        <div class="form-group">
+                           <label>🏷️ Categoria</label>
+                           <select id="expenseType" required>
+                              <option value="">Selecione...</option>
+                              <option value="⛽ Combustível">
+                                 ⛽ Combustível
+                              </option>
+                              <option value="🍽️ Alimentação">
+                                 🍽️ Alimentação
+                              </option>
+                              <option value="🏨 Hospedagem">
+                                 🏨 Hospedagem
+                              </option>
+                              <option value="🛣️ Pedágio">🛣️ Pedágio</option>
+                              <option value="🅿️ Estacionamento">
+                                 🅿️ Estacionamento
+                              </option>
+                              <option value="🎭zer">🎭 Lazer</option>
+                              <option value="🛍️ Compras">🛍️ Compras</option>
+                              <option value="⚙️ Manutenção">
+                                 ⚙️ Manutenção
+                              </option>
+                              <option value="📝 Outros">📝 Outros</option>
+                           </select>
+                        </div>
+
+                        <div class="form-group">
+                           <label>💵 Valor (R$)</label>
+                           <input
+                              type="number"
+                              id="expenseValue"
+                              step="0.01"
+                              min="0"
+                              required
+                              placeholder="0.00"
+                           />
+                        </div>
+                     </div>
+
+                     <div class="form-group">
+                        <label>📝 Descrição (opcional)</label>
+                        <input
+                           type="text"
+                           id="expenseDescription"
+                           placeholder="Ex: Posto BR, Restaurante X..."
+                        />
+                     </div>
+
+                     <button type="submit" class="btn btn-primary">
+                        ➕ Adicionar Gasto
+                     </button>
+                  </form>
+               </div>
+
+               <!-- Gastos Recentes -->
+               <div class="main-card">
+                  <div class="card-header">
+                     <h2 class="card-title">📋 Gastos Recentes</h2>
+                  </div>
+                  <div class="expense-list" id="expenseListPreview"></div>
+               </div>
+            </div>
+
+            <!-- SUB-TAB: DETALHES -->
+            <div id="detailsExpense" class="sub-tab-content">
+               <!-- Estatísticas -->
+               <div class="main-card">
+                  <div class="card-header">
+                     <h2 class="card-title">📊 Estatísticas da Viagem</h2>
+                  </div>
+                  <div class="stats-grid">
+                     <div class="stat-card">
+                        <div class="stat-label">💰 Total Gasto</div>
+                        <div class="stat-value" id="totalGasto">R$ 0,00</div>
+                     </div>
+                     <div class="stat-card">
+                        <div class="stat-label">📅 Média por Dia</div>
+                        <div class="stat-value" id="mediaDia">R$ 0,00</div>
+                     </div>
+                     <div class="stat-card">
+                        <div class="stat-label">🎯 Maior Gasto</div>
+                        <div class="stat-value" id="maiorGasto">R$ 0,00</div>
+                     </div>
+                     <div class="stat-card">
+                        <div class="stat-label">📝 Total de Registros</div>
+                        <div class="stat-value" id="totalRegistros">0</div>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- Gastos por Categoria -->
+               <div class="main-card">
+                  <div class="card-header">
+                     <h2 class="card-title">🏷️ Gastos por Categoria</h2>
+                  </div>
+                  <div class="category-list" id="categoryList"></div>
+               </div>
+
+               <!-- Lista Completa -->
+               <div class="main-card">
+                  <div class="card-header">
+                     <h2 class="card-title">📋 Todos os Gastos</h2>
+                  </div>
+                  <div class="expense-list" id="expenseListComplete"></div>
+               </div>
+            </div>
+
+            <!-- SUB-TAB: EXPORTAR -->
+            <div id="exportExpense" class="sub-tab-content">
+               <div class="main-card">
+                  <div class="card-header">
+                     <h2 class="card-title">💾 Exportar Dados</h2>
+                  </div>
+
+                  <div style="margin-bottom: 30px">
+                     <h3
+                        style="color: var(--primary-color); margin-bottom: 15px"
+                     >
+                        📊 Exportar para Excel
+                     </h3>
+                     <p style="color: #666; margin-bottom: 20px">
+                        Exporte seus dados para uma planilha Excel completa com
+                        múltiplas abas.
+                     </p>
+                     <div class="action-buttons">
+                        <button
+                           class="btn btn-success"
+                           onclick="TravelApp.exportToExcel()"
+                        >
+                           📊 Exportar Lista Completa
+                        </button>
+                        <button
+                           class="btn btn-warning"
+                           onclick="TravelApp.exportSummary()"
+                        >
+                           📈 Exportar Relatório com Estatísticas
+                        </button>
+                     </div>
+                  </div>
+
+                  <hr
+                     style="
+                        margin: 30px 0;
+                        border: none;
+                        border-top: 2px solid var(--light-bg);
+                     "
+                  />
+
+                  <div style="margin-bottom: 30px">
+                     <h3
+                        style="color: var(--danger-color); margin-bottom: 15px"
+                     >
+                        🗑️ Gerenciar Dados
+                     </h3>
+                     <p style="color: #666; margin-bottom: 20px">
+                        <strong>⚠️ ATENÇÃO:</strong> Esta ação não pode ser
+                        desfeita!
+                     </p>
+                     <button
+                        class="btn btn-danger"
+                        onclick="TravelApp.clearAll()"
+                     >
+                        🗑️ Limpar Todos os Dados
+                     </button>
+                  </div>
+
+                  <hr
+                     style="
+                        margin: 30px 0;
+                        border: none;
+                        border-top: 2px solid var(--light-bg);
+                     "
+                  />
+
+                  <div>
+                     <h3 style="color: var(--info-color); margin-bottom: 15px">
+                        📊 Resumo Rápido
+                     </h3>
+                     <div class="stats-grid" id="exportStats"></div>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </div>
+
+      <script>
+         // ========================================
+         // CONFIGURAÇÃO DO FIREBASE (PRÉ-CONFIGURADO)
+         // ========================================
+
+         const firebaseConfig = {
+            apiKey: "AIzaSyDvh7VQKARbALd2UmcrbKDYaXzsBZRtRJo",
+            authDomain: "travel-app-6f1aa.firebaseapp.com",
+            databaseURL: "https://travel-app-6f1aa-default-rtdb.firebaseio.com",
+            projectId: "travel-app-6f1aa",
+            storageBucket: "travel-app-6f1aa.firebasestorage.app",
+            messagingSenderId: "650131630158",
+            appId: "1:650131630158:web:f72157485378e38b903b1f",
+         };
+
+         // ========================================
+         // TRAVEL APP - APLICAÇÃO PRINCIPAL
+         // ========================================
+
+         const TravelApp = {
+            expenses: [],
+            db: null,
+            firebaseInitialized: false,
+            lastSync: null,
+
+            // INICIALIZAÇÃO
+            init() {
+               this.loadLocalExpenses();
+               this.setCurrentDate();
+               this.initFirebase();
+               this.render();
+            },
+
+            // FIREBASE: INICIALIZAÇÃO
+            initFirebase() {
+               try {
+                  if (!firebase.apps.length) {
+                     firebase.initializeApp(firebaseConfig);
+                  }
+
+                  this.db = firebase.database();
+                  this.firebaseInitialized = true;
+
+                  this.updateStatus(
+                     "connected",
+                     "✅ Conectado ao Firebase",
+                     "Sincronização em tempo real ativa"
+                  );
+
+                  // Listener para sincronização em tempo real
+                  this.db.ref("expenses").on(
+                     "value",
+                     (snapshot) => {
+                        const data = snapshot.val();
+                        if (data && Array.isArray(data)) {
+                           this.expenses = data;
+                           this.lastSync = new Date();
+                           this.updateSyncInfo();
+                           this.render();
+                        }
+                     },
+                     (error) => {
+                        console.error("Erro no listener:", error);
+                        this.updateStatus(
+                           "error",
+                           "❌ Erro na sincronização",
+                           error.message
+                        );
+                     }
+                  );
+               } catch (error) {
+                  console.error("Erro ao inicializar Firebase:", error);
+                  this.updateStatus(
+                     "error",
+                     "❌ Erro ao conectar",
+                     error.message
+                  );
+                  this.showAlert(
+                     "Usando modo offline. Dados salvos localmente.",
+                     "warning"
+                  );
+               }
+            },
+
+            // FIREBASE: SALVAR NO BANCO
+            saveToFirebase() {
+               if (!this.firebaseInitialized) {
+                  this.saveLocalExpenses();
+                  return;
+               }
+
+               this.updateStatus(
+                  "syncing",
+                  "⏳ Sincronizando...",
+                  "Salvando dados..."
+               );
+
+               this.db
+                  .ref("expenses")
+                  .set(this.expenses)
+                  .then(() => {
+                     this.lastSync = new Date();
+                     this.updateStatus(
+                        "connected",
+                        "✅ Sincronizado",
+                        "Dados salvos com sucesso"
+                     );
+                     this.updateSyncInfo();
+                     this.saveLocalExpenses();
+                  })
+                  .catch((error) => {
+                     console.error("Erro ao salvar no Firebase:", error);
+                     this.updateStatus(
+                        "error",
+                        "❌ Erro ao sincronizar",
+                        error.message
+                     );
+                     this.saveLocalExpenses();
+                  });
+            },
+
+            // ADICIONAR GASTO
+            addExpense(event) {
+               event.preventDefault();
+
+               const date = document.getElementById("expenseDate").value;
+               const type = document.getElementById("expenseType").value;
+               const value = parseFloat(
+                  document.getElementById("expenseValue").value
+               );
+               const description =
+                  document.getElementById("expenseDescription").value;
+
+               const expense = {
+                  id: Date.now(),
+                  date: this.formatDate(date),
+                  rawDate: date,
+                  type: type,
+                  value: value,
+                  description: description,
+               };
+
+               this.expenses.push(expense);
+               this.saveToFirebase();
+               this.render();
+               this.showAlert("✅ Gasto adicionado com sucesso!", "success");
+
+               document.getElementById("expenseForm").reset();
+               this.setCurrentDate();
+            },
+
+            // DELETAR GASTO
+            deleteExpense(id) {
+               if (confirm("🗑️ Deseja realmente excluir este gasto?")) {
+                  this.expenses = this.expenses.filter((exp) => exp.id !== id);
+                  this.saveToFirebase();
+                  this.render();
+                  this.showAlert("✅ Gasto excluído!", "success");
+               }
+            },
+
+            // LIMPAR TODOS OS GASTOS
+            clearAll() {
+               if (confirm("⚠️ Deseja excluir TODOS os gastos?")) {
+                  if (
+                     confirm("🔴 TEM CERTEZA? Esta ação NÃO pode ser desfeita!")
+                  ) {
+                     this.expenses = [];
+                     this.saveToFirebase();
+                     this.render();
+                     this.showAlert(
+                        "🗑️ Todos os gastos foram excluídos!",
+                        "success"
+                     );
+                  }
+               }
+            },
+
+            // RENDERIZAR TUDO
+            render() {
+               this.renderExpenseList("expenseListPreview", 5);
+               this.renderExpenseList("expenseListComplete", 0);
+               this.renderStats();
+               this.renderCategories();
+               this.renderExportStats();
+            },
+
+            // RENDERIZAR LISTA DE GASTOS
+            renderExpenseList(containerId, limit = 0) {
+               const container = document.getElementById(containerId);
+
+               if (this.expenses.length === 0) {
+                  container.innerHTML =
+                     '<div class="alert alert-info">💡 Nenhum gasto registrado ainda.</div>';
+                  return;
+               }
+
+               const sortedExpenses = [...this.expenses].sort((a, b) => {
+                  return new Date(b.rawDate) - new Date(a.rawDate);
+               });
+
+               const displayExpenses =
+                  limit > 0 ? sortedExpenses.slice(0, limit) : sortedExpenses;
+               const total = this.expenses.reduce(
+                  (sum, exp) => sum + exp.value,
+                  0
+               );
+
+               const expensesHTML = displayExpenses
+                  .map(
+                     (exp) => `
+                    <div class="expense-item">
+                        <div class="expense-info">
+                            <div class="expense-date">📅 ${exp.date}</div>
+                            <div class="expense-type">${exp.type}</div>
+                            ${
+                               exp.description
+                                  ? `<div class="expense-description">📝 ${exp.description}</div>`
+                                  : ""
+                            }
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="expense-value">${this.formatCurrency(
+                               exp.value
+                            )}</div>
+                            <button class="btn-delete" onclick="TravelApp.deleteExpense(${
+                               exp.id
+                            })">🗑️</button>
+                        </div>
+                    </div>
+                `
+                  )
+                  .join("");
+
+               let html = expensesHTML;
+
+               if (limit === 0) {
+                  html += `
+                        <div class="total-card">
+                            <div class="total-label">💰 TOTAL INVESTIDO NA VIAGEM</div>
+                            <div class="total-value">${this.formatCurrency(
+                               total
+                            )}</div>
+                        </div>
+                    `;
+               }
+
+               container.innerHTML = html;
+            },
+
+            // RENDERIZAR ESTATÍSTICAS
+            renderStats() {
+               if (this.expenses.length === 0) {
+                  document.getElementById("totalGasto").textContent = "R$ 0,00";
+                  document.getElementById("mediaDia").textContent = "R$ 0,00";
+                  document.getElementById("maiorGasto").textContent = "R$ 0,00";
+                  document.getElementById("totalRegistros").textContent = "0";
+                  return;
+               }
+
+               const total = this.expenses.reduce(
+                  (sum, exp) => sum + exp.value,
+                  0
+               );
+               const maiorGasto = Math.max(
+                  ...this.expenses.map((exp) => exp.value)
+               );
+               const uniqueDays = [
+                  ...new Set(this.expenses.map((exp) => exp.rawDate)),
+               ].length;
+               const mediaPorDia = total / uniqueDays;
+
+               document.getElementById("totalGasto").textContent =
+                  this.formatCurrency(total);
+               document.getElementById("mediaDia").textContent =
+                  this.formatCurrency(mediaPorDia);
+               document.getElementById("maiorGasto").textContent =
+                  this.formatCurrency(maiorGasto);
+               document.getElementById("totalRegistros").textContent =
+                  this.expenses.length;
+            },
+
+            // RENDERIZAR CATEGORIAS
+            renderCategories() {
+               const container = document.getElementById("categoryList");
+
+               if (this.expenses.length === 0) {
+                  container.innerHTML =
+                     '<div class="alert alert-info">💡 Nenhuma categoria com gastos.</div>';
+                  return;
+               }
+
+               const categories = this.getExpensesByCategory();
+               const totalGeral = this.expenses.reduce(
+                  (sum, exp) => sum + exp.value,
+                  0
+               );
+
+               const categoriesHTML = categories
+                  .map((cat) => {
+                     const percentage = (
+                        (cat.Total / totalGeral) *
+                        100
+                     ).toFixed(1);
+                     return `
+                        <div class="category-item">
+                            <div class="category-info">
+                                <div class="category-name">${
+                                   cat.Categoria
+                                }</div>
+                                <div class="category-count">
+                                    ${cat.Quantidade} ${
+                        cat.Quantidade === 1 ? "gasto" : "gastos"
+                     } • ${percentage}% do total
+                                </div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar" style="width: ${percentage}%"></div>
+                                </div>
+                            </div>
+                            <div class="category-value">${this.formatCurrency(
+                               cat.Total
+                            )}</div>
+                        </div>
+                    `;
+                  })
+                  .join("");
+
+               container.innerHTML = categoriesHTML;
+            },
+
+            // RENDERIZAR STATS NA ABA EXPORTAR
+            renderExportStats() {
+               const container = document.getElementById("exportStats");
+
+               if (this.expenses.length === 0) {
+                  container.innerHTML =
+                     '<div class="alert alert-info">💡 Nenhum dado para exibir.</div>';
+                  return;
+               }
+
+               const total = this.expenses.reduce(
+                  (sum, exp) => sum + exp.value,
+                  0
+               );
+               const uniqueDays = [
+                  ...new Set(this.expenses.map((exp) => exp.rawDate)),
+               ].length;
+
+               container.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-label">📝 Total de Registros</div>
+                        <div class="stat-value">${this.expenses.length}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">💰 Valor Total</div>
+                        <div class="stat-value">${this.formatCurrency(
+                           total
+                        )}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">📅 Dias de Viagem</div>
+                        <div class="stat-value">${uniqueDays}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">🏷️ Categorias</div>
+                        <div class="stat-value">${
+                           this.getExpensesByCategory().length
+                        }</div>
+                    </div>
+                `;
+            },
+
+            // EXPORTAR PARA EXCEL
+            exportToExcel() {
+               if (this.expenses.length === 0) {
+                  alert("⚠️ Nenhum gasto para exportar!");
+                  return;
+               }
+
+               try {
+                  const wb = XLSX.utils.book_new();
+
+                  const data = this.expenses.map((exp) => ({
+                     Data: exp.date,
+                     Categoria: exp.type,
+                     Descrição: exp.description || "-",
+                     Valor: exp.value,
+                  }));
+
+                  const ws = XLSX.utils.json_to_sheet(data);
+                  const total = this.expenses.reduce(
+                     (sum, exp) => sum + exp.value,
+                     0
+                  );
+                  XLSX.utils.sheet_add_aoa(
+                     ws,
+                     [[], ["", "", "TOTAL:", total]],
+                     { origin: -1 }
+                  );
+
+                  ws["!cols"] = [
+                     { wch: 12 },
+                     { wch: 20 },
+                     { wch: 40 },
+                     { wch: 15 },
+                  ];
+                  XLSX.utils.book_append_sheet(wb, ws, "Gastos Detalhados");
+
+                  const resumo = this.getExpensesByCategory();
+                  const wsResumo = XLSX.utils.json_to_sheet(resumo);
+                  wsResumo["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }];
+                  XLSX.utils.book_append_sheet(
+                     wb,
+                     wsResumo,
+                     "Resumo por Categoria"
+                  );
+
+                  const fileName = `Gastos_Viagem_${this.getTimestamp()}.xlsx`;
+                  XLSX.writeFile(wb, fileName);
+
+                  this.showAlert("✅ Excel exportado com sucesso!", "success");
+               } catch (error) {
+                  console.error("Erro ao exportar:", error);
+                  this.showAlert("❌ Erro ao exportar planilha.", "error");
+               }
+            },
+
+            // EXPORTAR RELATÓRIO COMPLETO
+            exportSummary() {
+               if (this.expenses.length === 0) {
+                  alert("⚠️ Nenhum gasto para exportar!");
+                  return;
+               }
+
+               try {
+                  const wb = XLSX.utils.book_new();
+
+                  const total = this.expenses.reduce(
+                     (sum, exp) => sum + exp.value,
+                     0
+                  );
+                  const uniqueDays = [
+                     ...new Set(this.expenses.map((exp) => exp.rawDate)),
+                  ].length;
+                  const mediaPorDia = total / uniqueDays;
+                  const maiorGasto = Math.max(
+                     ...this.expenses.map((exp) => exp.value)
+                  );
+
+                  const statsData = [
+                     { Indicador: "Total Gasto", Valor: total },
+                     { Indicador: "Dias de Viagem", Valor: uniqueDays },
+                     {
+                        Indicador: "Média por Dia",
+                        Valor: parseFloat(mediaPorDia.toFixed(2)),
+                     },
+                     { Indicador: "Maior Gasto", Valor: maiorGasto },
+                     {
+                        Indicador: "Total de Registros",
+                        Valor: this.expenses.length,
+                     },
+                  ];
+
+                  const wsStats = XLSX.utils.json_to_sheet(statsData);
+                  wsStats["!cols"] = [{ wch: 25 }, { wch: 15 }];
+                  XLSX.utils.book_append_sheet(wb, wsStats, "Estatísticas");
+
+                  const resumo = this.getExpensesByCategory();
+                  const wsResumo = XLSX.utils.json_to_sheet(resumo);
+                  wsResumo["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }];
+                  XLSX.utils.book_append_sheet(wb, wsResumo, "Por Categoria");
+
+                  const data = this.expenses.map((exp) => ({
+                     Data: exp.date,
+                     Categoria: exp.type,
+                     Descrição: exp.description || "-",
+                     Valor: exp.value,
+                  }));
+                  const wsDetalhes = XLSX.utils.json_to_sheet(data);
+                  wsDetalhes["!cols"] = [
+                     { wch: 12 },
+                     { wch: 20 },
+                     { wch: 40 },
+                     { wch: 15 },
+                  ];
+                  XLSX.utils.book_append_sheet(wb, wsDetalhes, "Detalhamento");
+
+                  const fileName = `Relatorio_Completo_Viagem_${this.getTimestamp()}.xlsx`;
+                  XLSX.writeFile(wb, fileName);
+
+                  this.showAlert("✅ Relatório completo exportado!", "success");
+               } catch (error) {
+                  console.error("Erro:", error);
+                  this.showAlert("❌ Erro ao exportar relatório.", "error");
+               }
+            },
+
+            // AGRUPAR POR CATEGORIA
+            getExpensesByCategory() {
+               const categoryTotals = {};
+
+               this.expenses.forEach((exp) => {
+                  if (!categoryTotals[exp.type]) {
+                     categoryTotals[exp.type] = {
+                        Categoria: exp.type,
+                        Quantidade: 0,
+                        Total: 0,
+                     };
+                  }
+                  categoryTotals[exp.type].Quantidade++;
+                  categoryTotals[exp.type].Total += exp.value;
+               });
+
+               return Object.values(categoryTotals).sort(
+                  (a, b) => b.Total - a.Total
+               );
+            },
+
+            // SALVAR LOCALMENTE
+            saveLocalExpenses() {
+               localStorage.setItem(
+                  "travelExpenses",
+                  JSON.stringify(this.expenses)
+               );
+            },
+
+            // CARREGAR LOCAL
+            loadLocalExpenses() {
+               const saved = localStorage.getItem("travelExpenses");
+               if (saved) {
+                  this.expenses = JSON.parse(saved);
+               }
+            },
+
+            // ATUALIZAR STATUS
+            updateStatus(status, message, details = "") {
+               const indicator = document.getElementById("firebaseIndicator");
+               const statusText = document.getElementById("firebaseStatus");
+               const syncInfo = document.getElementById("syncInfo");
+
+               indicator.className = `status-indicator ${status}`;
+               statusText.textContent = message;
+
+               if (details) {
+                  syncInfo.textContent = details;
+               }
+            },
+
+            // ATUALIZAR INFO DE SINCRONIZAÇÃO
+            updateSyncInfo() {
+               if (!this.lastSync) return;
+
+               const syncInfo = document.getElementById("syncInfo");
+               const now = new Date();
+               const diff = Math.floor((now - this.lastSync) / 1000);
+
+               let timeText = "";
+               if (diff < 60) {
+                  timeText = "Agora mesmo";
+               } else if (diff < 3600) {
+                  timeText = `${Math.floor(diff / 60)} min atrás`;
+               } else {
+                  timeText = this.lastSync.toLocaleTimeString("pt-BR");
+               }
+
+               syncInfo.textContent = `Última sincronização: ${timeText}`;
+            },
+
+            // UTILITÁRIOS
+            formatCurrency(value) {
+               return new Intl.NumberFormat("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+               }).format(value);
+            },
+
+            formatDate(dateString) {
+               const [y, m, d] = dateString.split("-");
+               return `${d}/${m}/${y}`;
+            },
+
+            getTimestamp() {
+               return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+            },
+
+            setCurrentDate() {
+               document.getElementById("expenseDate").value = new Date()
+                  .toISOString()
+                  .split("T")[0];
+            },
+
+            showAlert(message, type) {
+               const container = document.getElementById("alertContainer");
+               const alertClass = `alert-${type}`;
+               container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+               setTimeout(() => {
+                  container.innerHTML = "";
+               }, 4000);
+            },
+         };
+
+         // ========================================
+         // GERENCIAMENTO DE TABS
+         // ========================================
+
+         function switchMainTab(tabName, button) {
+            document.querySelectorAll(".tab-content").forEach((tab) => {
+               tab.classList.remove("active");
+            });
+            document.querySelectorAll(".tab-button").forEach((btn) => {
+               btn.classList.remove("active");
+            });
+
+            document.getElementById(tabName).classList.add("active");
+            button.classList.add("active");
+         }
+
+         function switchSubTab(tabName, button) {
+            document.querySelectorAll(".sub-tab-content").forEach((tab) => {
+               tab.classList.remove("active");
+            });
+            document.querySelectorAll(".sub-tab-button").forEach((btn) => {
+               btn.classList.remove("active");
+            });
+
+            document.getElementById(tabName).classList.add("active");
+            button.classList.add("active");
+         }
+
+         // ========================================
+         // INICIALIZAÇÃO
+         // ========================================
+
+         document.addEventListener("DOMContentLoaded", () => {
+            TravelApp.init();
+
+            setInterval(() => {
+               TravelApp.updateSyncInfo();
+            }, 60000);
+         });
+
+         window.addEventListener("beforeunload", () => {
+            TravelApp.saveLocalExpenses();
+         });
+      </script>
+   </body>
+</html>
